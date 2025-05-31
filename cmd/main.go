@@ -131,7 +131,7 @@ func main() {
 			msg, _ := DecodeFrame(data)
 			fmt.Println(string(msg.Payload))
 
-			reply, err := EncodeFrame([]byte("Hello from server!"), TEXT, false)
+			reply, err := EncodeFrame([]byte("Hello from server!"), TEXT)
 			if err != nil {
 				log.Println("Failed encode the frame: ", err)
 			}
@@ -247,7 +247,7 @@ func DecodeFrame(data []byte) (Frame, error) {
 	return frame, nil
 }
 
-func EncodeFrame(payload []byte, opcode Opcode, isMasked bool) ([]byte, error) {
+func EncodeFrame(payload []byte, opcode Opcode) ([]byte, error) {
 	// for the size, since we know the msg frame size, we can just use 14 as the initial size + payload length
 	// 1 byte (FIN/Opcode)
 	// + 1 byte (Mask bit/Initial length)
@@ -263,46 +263,31 @@ func EncodeFrame(payload []byte, opcode Opcode, isMasked bool) ([]byte, error) {
 	// | 00000001  (0x1)
 	// ------------------
 	// 10000001  (0x81)
+	// since we used the encodeFrame only for server, so the masked is always false
 	msgFrame = append(msgFrame, (byte(0x80) | byte(opcode)))
-
-	maskedKey := byte(0x00)
-	if isMasked {
-		maskedKey |= byte(0x80)
-	}
 
 	payloadLen := len(payload)
 	var extendedPayloadLen []byte // this used to hold the extended payload length
 
 	if payloadLen <= 125 {
-		maskedKey |= byte(payloadLen)
+		msgFrame = append(msgFrame, byte(payloadLen))
 	} else if payloadLen <= 65535 { // 65535 is the max value for uint16 (0xFFFF)
-		maskedKey |= 126
+		msgFrame = append(msgFrame, 126)
 
 		extendedPayloadLen = make([]byte, 2)
 		binary.BigEndian.PutUint16(extendedPayloadLen, uint16(payloadLen))
 	} else {
-		maskedKey |= 127
+		msgFrame = append(msgFrame, 127)
 
 		extendedPayloadLen = make([]byte, 8)
 		binary.BigEndian.PutUint64(extendedPayloadLen, uint64(payloadLen))
 	}
 
-	msgFrame = append(msgFrame, maskedKey)
-
 	if extendedPayloadLen != nil {
 		msgFrame = append(msgFrame, extendedPayloadLen...)
 	}
 
-	if isMasked {
-		maskedPayload := make([]byte, len(payload))
-		for i := range payload {
-			maskedPayload[i] = payload[i] ^ maskedKey
-		}
-
-		msgFrame = append(msgFrame, maskedPayload...)
-	} else {
-		msgFrame = append(msgFrame, payload...)
-	}
+	msgFrame = append(msgFrame, payload...)
 
 	return msgFrame, nil
 }
