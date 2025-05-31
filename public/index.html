@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Websocket DEMO</title>
+  </head>
+  <body></body>
+
+  <script>
+    const socket = new WebSocket("ws://localhost:8080/ws");
+
+    socket.addEventListener("open", () => {
+      console.log("open");
+    });
+
+    socket.addEventListener("message", (event) => {
+      console.log(event.data);
+    });
+
+    socket.addEventListener("close", () => {
+      console.log("close");
+    });
+
+    // sending a message to socket for each second
+    setInterval(() => {
+      socket.send("Hello from client");
+
+      // 126
+      const largeMessage = new Array(200).fill("a").join("");
+      socket.send(largeMessage);
+    }, 1000);
+  </script>
+</html>
