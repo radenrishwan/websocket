@@ -57,11 +57,14 @@ func (self *Room) Run() {
 		case msg := <-self.Enter:
 			self.Add(msg.Client)
 			self.Broadcast(msg.Data, websocket.TEXT)
+			self.Option.OnEnter(msg)
 		case msg := <-self.Leave:
 			self.Remove(msg.Client)
 			self.Broadcast(msg.Data, websocket.TEXT)
+			self.Option.OnLeave(msg)
 		case msg := <-self.Message:
 			self.Broadcast(msg.Data, websocket.TEXT)
+			self.Option.OnMessage(msg)
 		}
 	}
 }
@@ -80,14 +83,28 @@ func (r *Room) Remove(client *websocket.Client) {
 	delete(r.clients, client)
 }
 
-// TODO: finish this later
 func (r *Room) Close() {
+	r.Mutex.Lock()
+	defer r.Mutex.Unlock()
+
+	for client := range r.clients {
+		err := client.Close(nil, websocket.STATUS_CLOSE_NORMAL_CLOSURE)
+		if err != nil {
+			r.Option.OnError(err)
+		}
+	}
+
+	r.clients = make(map[*websocket.Client]bool)
+
 	close(r.Enter)
 	close(r.Leave)
 	close(r.Message)
 }
 
 func (r *Room) Broadcast(message []byte, opcode websocket.Opcode) error {
+	r.Mutex.Lock()
+	defer r.Mutex.Unlock()
+
 	for client := range r.clients {
 		_, err := client.Write(message, opcode)
 		if err != nil {
