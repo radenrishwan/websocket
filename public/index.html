@@ -3,32 +3,202 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Websocket DEMO</title>
+    <title>WebSocket Chat</title>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      body {
+        font-family: "Arial", sans-serif;
+        max-width: 800px;
+        margin: 0 auto;
+        padding: 20px;
+      }
+      h1 {
+        text-align: center;
+        margin-bottom: 20px;
+      }
+      #login-container {
+        text-align: center;
+        margin-bottom: 20px;
+      }
+      #chat-container {
+        display: none;
+        height: 100%;
+      }
+      #messages {
+        height: 400px;
+        border: 1px solid #ccc;
+        padding: 10px;
+        margin-bottom: 10px;
+        overflow-y: auto;
+      }
+      .message {
+        margin-bottom: 8px;
+        padding: 5px;
+      }
+      .join,
+      .leave {
+        color: #616161;
+        font-style: italic;
+      }
+      .username {
+        font-weight: bold;
+        margin-right: 8px;
+      }
+      .timestamp {
+        font-size: 0.8em;
+        color: #888;
+      }
+      #message-form {
+        display: flex;
+      }
+      #message-input {
+        flex-grow: 1;
+        padding: 8px;
+        border: 1px solid #ccc;
+      }
+      button {
+        padding: 8px 16px;
+        background-color: #4caf50;
+        color: white;
+        border: none;
+        cursor: pointer;
+      }
+      button:hover {
+        background-color: #45a049;
+      }
+    </style>
   </head>
-  <body></body>
+  <body>
+    <h1>WebSocket Chat</h1>
 
-  <script>
-    const socket = new WebSocket("ws://localhost:8080/ws");
+    <div id="login-container">
+      <input
+        type="text"
+        id="username-input"
+        placeholder="Enter your username"
+      />
+      <button id="login-button">Join Chat</button>
+    </div>
 
-    socket.addEventListener("open", () => {
-      console.log("open");
-    });
+    <div id="chat-container">
+      <div id="messages"></div>
+      <form id="message-form">
+        <input type="text" id="message-input" placeholder="Type a message..." />
+        <button type="submit">Send</button>
+      </form>
+    </div>
 
-    socket.addEventListener("message", (event) => {
-      console.log(event.data);
-    });
+    <script>
+      const MESSAGE_JOIN = 0;
+      const MESSAGE_LEAVE = 1;
+      const MESSAGE_MESSAGE = 2;
 
-    socket.addEventListener("close", () => {
-      console.log("close");
-    });
+      let socket;
+      let username = "";
 
-    // sending a message to socket for each second
-    setInterval(() => {
-      socket.send("Hello from client");
+      document
+        .getElementById("login-button")
+        .addEventListener("click", function () {
+          username = document.getElementById("username-input").value.trim();
+          if (username) {
+            connectWebSocket(username);
+          } else {
+            alert("Please enter a username");
+          }
+        });
 
-      // 126
-      const largeMessage = new Array(200).fill("a").join("");
-      socket.send(largeMessage);
-    }, 1000);
-  </script>
+      document
+        .getElementById("message-form")
+        .addEventListener("submit", function (e) {
+          e.preventDefault();
+          const messageInput = document.getElementById("message-input");
+          const message = messageInput.value.trim();
+
+          if (message && socket && socket.readyState === WebSocket.OPEN) {
+            const chatMessage = {
+              type: MESSAGE_MESSAGE,
+              content: message,
+            };
+
+            socket.send(JSON.stringify(chatMessage));
+            messageInput.value = "";
+          }
+        });
+
+      function connectWebSocket(username) {
+        socket = new WebSocket(
+          `ws://${window.location.host}/ws?username=${encodeURIComponent(username)}`,
+        );
+
+        socket.addEventListener("open", function () {
+          document.getElementById("login-container").style.display = "none";
+          document.getElementById("chat-container").style.display = "block";
+          console.log("Connected to chat server");
+        });
+
+        socket.addEventListener("message", function (event) {
+          const message = JSON.parse(event.data);
+          displayMessage(message);
+        });
+
+        socket.addEventListener("close", function () {
+          console.log("Disconnected from chat server");
+          document.getElementById("login-container").style.display = "block";
+          document.getElementById("chat-container").style.display = "none";
+
+          const messages = document.getElementById("messages");
+          messages.innerHTML += `<div class="message system">Disconnected from server. Please refresh the page.</div>`;
+          messages.scrollTop = messages.scrollHeight;
+        });
+
+        socket.addEventListener("error", function (error) {
+          console.error("WebSocket error:", error);
+        });
+      }
+
+      function displayMessage(message) {
+        const messagesDiv = document.getElementById("messages");
+        const messageDiv = document.createElement("div");
+        const time = new Date(message.timestamp * 1000).toLocaleTimeString();
+
+        switch (message.type) {
+          case MESSAGE_JOIN:
+            messageDiv.className = "message join";
+            messageDiv.textContent = `${message.content} (${time})`;
+            break;
+
+          case MESSAGE_LEAVE:
+            messageDiv.className = "message leave";
+            messageDiv.textContent = `${message.content} (${time})`;
+            break;
+
+          case MESSAGE_MESSAGE:
+            messageDiv.className = "message";
+
+            const usernameSpan = document.createElement("span");
+            usernameSpan.className = "username";
+            usernameSpan.textContent = message.username;
+
+            const contentSpan = document.createElement("span");
+            contentSpan.textContent = message.content;
+
+            const timestampSpan = document.createElement("span");
+            timestampSpan.className = "timestamp";
+            timestampSpan.textContent = ` (${time})`;
+
+            messageDiv.appendChild(usernameSpan);
+            messageDiv.appendChild(contentSpan);
+            messageDiv.appendChild(timestampSpan);
+            break;
+        }
+
+        messagesDiv.appendChild(messageDiv);
+        messagesDiv.scrollTop = messagesDiv.scrollHeight;
+      }
+    </script>
+  </body>
 </html>

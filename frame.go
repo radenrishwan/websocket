@@ -3,7 +3,6 @@ package websocket
 import (
 	"encoding/binary"
 	"errors"
-	"fmt"
 )
 
 type Frame struct {
@@ -62,8 +61,6 @@ func DecodeFrame(data []byte) (Frame, error) {
 	frame.IsMasked = data[offset]&0x80 != 0   // 0x10000000
 	payloadLength := int(data[offset] & 0x7F) // 0x01111111
 	offset++
-
-	fmt.Println("payload length: ", payloadLength)
 
 	switch payloadLength {
 	case 126:
